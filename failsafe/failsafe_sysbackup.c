@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <linux/libfdt.h>
 #include <linux/ctype.h>
+#include <linux/kernel.h>
 #include <malloc.h>
 #include <asm/global_data.h>
 #ifdef CONFIG_MTD
@@ -889,7 +890,7 @@ static struct backup_session *backup_alloc_session(void)
 	if (!st)
 		return NULL;
 
-	st->buf_size = 4096;
+	st->buf_size = 64 * 1024;
 	st->buf = malloc(st->buf_size);
 	if (!st->buf) {
 		free(st);
@@ -1171,9 +1172,7 @@ void backup_handler(enum httpd_uri_handler_status status,
 			return;
 		}
 
-		want = st->buf_size;
-		if (want > (size_t)(st->end - st->cur))
-			want = (size_t)(st->end - st->cur);
+		want = (size_t)min_t(u64, (u64)st->buf_size, st->end - st->cur);
 
 		ret = mtd_read(st->mtd, st->cur, want, &retlen, st->buf);
 		if (ret || !retlen) {
