@@ -1149,6 +1149,19 @@ static const struct spi_flash_info *spi_flash_read_id(struct spi_flash *flash)
 
 	printf("SF: unrecognized JEDEC id bytes: %02x, %02x, %02x\n",
 	       id[0], id[1], id[2]);
+
+#ifdef CONFIG_SPI_FLASH_SFDP
+	/* Try to use SFDP to probe the flash */
+	printf("SF: Trying to probe flash using SFDP\n");
+	tmp = spi_flash_probe_sfdp(flash, (struct spi_flash_info *)info);
+	if (!tmp) {
+		/* Return a temporary info pointer */
+		static struct spi_flash_info sfdp_info;
+		memcpy(&sfdp_info, info, sizeof(sfdp_info));
+		return &sfdp_info;
+	}
+#endif
+
 	return ERR_PTR(-ENODEV);
 }
 
@@ -1176,6 +1189,196 @@ static int set_quad_mode(struct spi_flash *flash,
 		return -1;
 	}
 }
+
+#ifdef CONFIG_SPI_FLASH_SFDP
+/* Read SFDP table from flash */
+static int spi_flash_read_sfdp(struct spi_flash *flash, u32 addr,
+			       size_t len, void *buf)
+{
+	struct spi_slave *spi = flash->spi;
+	u8 cmd[4];
+	int ret;
+
+	ret = spi_claim_bus(spi);
+	if (ret) {
+		debug("SF: unable to claim SPI bus\n");
+		return ret;
+	}
+
+	cmd[0] = CMD_READ_SFDP;
+	cmd[1] = addr >> 16;
+	cmd[2] = addr >> 8;
+	cmd[3] = addr >> 0;
+
+	ret = spi_flash_cmd_read(spi, cmd, sizeof(cmd), buf, len);
+	if (ret < 0) {
+		debug("SF: SFDP read failed\n");
+		spi_release_bus(spi);
+		return ret;
+	}
+
+	spi_release_bus(spi);
+	return 0;
+}
+
+/* Parse Basic Flash Parameter Table (BFPT) */
+static int spi_flash_parse_bfpt(struct spi_flash *flash,
+				 const struct sfdp_parameter_header *bfpt_header,
+				 struct sfdp_bfpt *bfpt)
+{
+	size_t len;
+	u32 addr;
+	int i, err;
+
+	if (bfpt_header->length < BFPT_DWORD_MAX_JESD216)
+		return -EINVAL;
+
+	len = min_t(size_t, sizeof(*bfpt),
+		    bfpt_header->length * sizeof(u32));
+	addr = SFDP_PARAM_HEADER_PTP(bfpt_header);
+	memset(bfpt, 0, sizeof(*bfpt));
+
+	err = spi_flash_read_sfdp(flash, addr, len, bfpt);
+	if (err < 0)
+		return err;
+
+	for (i = 0; i < BFPT_DWORD_MAX; i++)
+		bfpt->dwords[i] = le32_to_cpu(bfpt->dwords[i]);
+
+	return 0;
+}
+
+/* Parse SFDP header and extract flash parameters */
+static int spi_flash_parse_sfdp(struct spi_flash *flash,
+				 struct spi_flash_info *info)
+{
+	struct sfdp_header header;
+	struct sfdp_bfpt bfpt;
+	const struct sfdp_parameter_header *bfpt_header;
+	struct sfdp_parameter_header *param_headers = NULL;
+	size_t psize;
+	int i, err;
+
+	err = spi_flash_read_sfdp(flash, 0, sizeof(header), &header);
+	if (err < 0)
+		return err;
+
+	if (le32_to_cpu(header.signature) != SFDP_SIGNATURE ||
+	    header.major != SFDP_JESD216_MAJOR) {
+		debug("SF: Invalid SFDP signature or version\n");
+		return -EINVAL;
+	}
+
+	bfpt_header = &header.bfpt_header;
+	if (SFDP_PARAM_HEADER_ID(bfpt_header) != SFDP_BFPT_ID ||
+	    bfpt_header->major != SFDP_JESD216_MAJOR) {
+		debug("SF: Invalid BFPT header\n");
+		return -EINVAL;
+	}
+
+	if (header.nph) {
+		psize = header.nph * sizeof(*param_headers);
+		param_headers = malloc(psize);
+		if (!param_headers)
+			return -ENOMEM;
+
+		err = spi_flash_read_sfdp(flash, sizeof(header), psize, param_headers);
+		if (err < 0) {
+			debug("SF: Failed to read SFDP parameter headers\n");
+			goto exit;
+		}
+
+		for (i = 0; i < header.nph; i++) {
+			const struct sfdp_parameter_header *ph = &param_headers[i];
+
+			if (SFDP_PARAM_HEADER_ID(ph) == SFDP_BFPT_ID &&
+			    ph->major == SFDP_JESD216_MAJOR &&
+			    (ph->minor > bfpt_header->minor ||
+			     (ph->minor == bfpt_header->minor &&
+			      ph->length > bfpt_header->length)))
+				bfpt_header = ph;
+		}
+	}
+
+	err = spi_flash_parse_bfpt(flash, bfpt_header, &bfpt);
+	if (err)
+		goto exit;
+
+	/* Parse address width from BFPT */
+	switch (bfpt.dwords[BFPT_DWORD(1)] & BFPT_DWORD1_ADDRESS_BYTES_MASK) {
+	case BFPT_DWORD1_ADDRESS_BYTES_3_ONLY:
+	case BFPT_DWORD1_ADDRESS_BYTES_3_OR_4:
+		info->addr_width = 3;
+		break;
+	case BFPT_DWORD1_ADDRESS_BYTES_4_ONLY:
+		info->addr_width = 4;
+		break;
+	default:
+		info->addr_width = 3;
+	}
+
+	/* Parse flash size from BFPT (DWORD 2) */
+	info->n_sectors = bfpt.dwords[BFPT_DWORD(2)];
+	if (info->n_sectors & BIT(31)) {
+		info->n_sectors &= ~BIT(31);
+		if (info->n_sectors > 63) {
+			err = -EINVAL;
+			goto exit;
+		}
+		info->n_sectors = 1ULL << info->n_sectors;
+	} else {
+		info->n_sectors++;
+	}
+	info->n_sectors >>= 3; /* Convert bits to bytes */
+
+	/* Parse page size from BFPT (DWORD 11) if available */
+	if (bfpt_header->length >= BFPT_DWORD(11)) {
+		info->page_size = bfpt.dwords[BFPT_DWORD(11)];
+		info->page_size &= BFPT_DWORD11_PAGE_SIZE_MASK;
+		info->page_size >>= BFPT_DWORD11_PAGE_SIZE_SHIFT;
+		info->page_size = 1U << info->page_size;
+	} else {
+		info->page_size = 256; /* Default page size */
+	}
+
+	/* Set default sector size */
+	info->sector_size = 64 * 1024; /* Default 64KB sectors */
+
+	/* Check for 4K sector support */
+	if (bfpt.dwords[BFPT_DWORD(1)] & BFPT_DWORD1_FAST_READ_1_1_2)
+		info->flags |= SPI_NOR_DUAL_READ;
+	if (bfpt.dwords[BFPT_DWORD(1)] & BFPT_DWORD1_FAST_READ_1_1_4)
+		info->flags |= SPI_NOR_QUAD_READ;
+
+exit:
+	free(param_headers);
+	return err;
+}
+
+/* Read SFDP and fill flash info if JEDEC ID lookup fails */
+static int spi_flash_probe_sfdp(struct spi_flash *flash,
+				struct spi_flash_info *info)
+{
+	int ret;
+
+	memset(info, 0, sizeof(*info));
+	info->name = "SFDP flash";
+	info->id_len = 0;
+
+	ret = spi_flash_parse_sfdp(flash, info);
+	if (ret)
+		return ret;
+
+	flash->size = info->n_sectors;
+	flash->sector_size = info->sector_size;
+	flash->page_size = info->page_size;
+
+	if (info->addr_width == 4)
+		flash->flags |= SNOR_F_4B_ADDR;
+
+	return 0;
+}
+#endif /* CONFIG_SPI_FLASH_SFDP */
 
 #if CONFIG_IS_ENABLED(OF_CONTROL)
 int spi_flash_decode_fdt(struct spi_flash *flash)
