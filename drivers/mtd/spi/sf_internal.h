@@ -235,33 +235,41 @@ struct spi_flash_info {
 	u32		n_sectors;
 
 	u16		page_size;
+	u16		addr_width;
 
-	u16		flags;
-#define SECT_4K				BIT(0)	/* CMD_ERASE_4K works uniformly */
-#define SECT_4K_PMC		SECT_4K	/* PMC 4K-erase variant (same opcode here) */
-#define USE_FSR				BIT(1)	/* use flag status register */
-#define E_FSR			USE_FSR
-#define SST_WRITE			BIT(2)	/* use SST byte/word programming */
+	u32		flags;
+#define SECT_4K					BIT(0)	/* CMD_ERASE_4K works uniformly */
+#define SPI_NOR_NO_ERASE		BIT(1)	/* No erase command needed */
+#define SST_WRITE				BIT(2)	/* use SST byte/word programming */
+#define SPI_NOR_NO_FR			BIT(3)	/* Can't do fastread */
+#define SECT_4K_PMC				BIT(4)	/* CMD_ERASE_4K_PMC works uniformly */
+#define SPI_NOR_DUAL_READ		BIT(5)	/* Flash supports Dual Read */
+#define SPI_NOR_QUAD_READ		BIT(6)	/* Flash supports Quad Read */
+#define USE_FSR					BIT(7)	/* use flag status register */
+#define SPI_NOR_HAS_LOCK		BIT(8)	/* Flash supports lock/unlock via SR */
+#define SPI_NOR_HAS_TB			BIT(9)	/* Flash SR has Top/Bottom (TB) protect bit */
+#define SPI_S3AN				BIT(10)	
+					/* Xilinx Spartan 3AN In-System Flash
+					 * (MFR cannot be used for probing because
+					 * it has the same value as ATMEL flashes)
+					 */
+#define SPI_NOR_4B_OPCODES		BIT(11)	
+					/* Use dedicated 4byte address op codes
+					 * to support memory size above 128Mib.
+					 */
+#define NO_CHIP_ERASE			BIT(12)	/* Chip does not support chip erase */
+#define SPI_NOR_SKIP_SFDP		BIT(13)	/* Skip parsing of SFDP tables */
+#define USE_CLSR				BIT(14)	/* use CLSR command */
+#define SPI_NOR_HAS_SST26LOCK	BIT(15)	/* Flash supports lock/unlock via BPR */
+#define SPI_NOR_OCTAL_READ		BIT(16)	/* Flash supports Octal Read */
+#define SPI_NOR_OCTAL_DTR_READ	BIT(17)	/* Flash supports Octal DTR Read */
+#define WR_QPP					BIT(18)	/* Use Quad Page Program (probe-time) */
+
+/* Legacy aliases for backward compatibility */
 #define SST_WR			SST_WRITE
-#define WR_QPP				BIT(3)	/* use Quad Page Program */
-#define SPI_NOR_QUAD_READ	BIT(4)	/* chip supports Quad Read */
+#define E_FSR			USE_FSR
 #define RD_QUAD			SPI_NOR_QUAD_READ
-#define SPI_NOR_DUAL_READ	BIT(5)	/* chip supports Dual Read */
 #define RD_DUAL			SPI_NOR_DUAL_READ
-#define RD_QUADIO			BIT(6)	/* use Quad IO Read */
-#define RD_DUALIO			BIT(7)	/* use Dual IO Read */
-#define RD_FULL			(RD_QUAD | RD_DUAL | RD_QUADIO | RD_DUALIO)
-#define SPI_NOR_OCTAL_READ	BIT(8)	/* chip supports Octal Read */
-#define SPI_NOR_OCTAL_DTR_READ	SPI_NOR_OCTAL_READ
-#define SPI_NOR_HAS_LOCK	BIT(9)	/* chip supports lock/unlock via status reg */
-#define SPI_NOR_HAS_TB		SPI_NOR_HAS_LOCK
-#define SPI_NOR_HAS_SST26LOCK	SPI_NOR_HAS_LOCK
-#define SPI_NOR_4B_OPCODES	BIT(10)	/* use dedicated 4-byte address opcodes */
-#define SPI_NOR_NO_ERASE	BIT(11)	/* chip has no erase command */
-#define SPI_NOR_NO_FR		BIT(12)	/* chip cannot do fast read */
-#define SPI_NOR_SKIP_SFDP	BIT(13)	/* skip SFDP table parsing */
-#define USE_CLSR			BIT(14)	/* use CLSR command */
-#define NO_CHIP_ERASE		BIT(15)	/* chip has no chip-wide erase opcode */
 };
 
 extern const struct spi_flash_info spi_flash_ids[];
