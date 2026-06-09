@@ -1702,6 +1702,7 @@ distclean: mrproper
 		-o -name '*.pyc' \) \
 		-type f -print | xargs rm -f
 	@rm -f boards.cfg
+	rm -rf archive
 
 backup:
 	F=`basename $(srctree)` ; cd .. ; \
