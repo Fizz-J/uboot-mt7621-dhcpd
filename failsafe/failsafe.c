@@ -364,9 +364,11 @@ int start_web_failsafe(void)
 	httpd_register_uri_handler(inst, "/upload", &upload_handler, NULL);
 	httpd_register_uri_handler(inst, "/result", &result_handler, NULL);
 	httpd_register_uri_handler(inst, "/version", &version_handler, NULL);
-	httpd_register_uri_handler(inst, "/sysinfo", &sysinfo_handler, NULL);
-	httpd_register_uri_handler(inst, "/backupinfo", &backupinfo_handler, NULL);
-	httpd_register_uri_handler(inst, "/backup", &backup_handler, NULL);
+	if (!IS_ENABLED(CONFIG_FAILSAFE_LEGACY_MODE)) {
+		httpd_register_uri_handler(inst, "/sysinfo", &sysinfo_handler, NULL);
+		httpd_register_uri_handler(inst, "/backupinfo", &backupinfo_handler, NULL);
+		httpd_register_uri_handler(inst, "/backup", &backup_handler, NULL);
+	}
 	httpd_register_uri_handler(inst, "/reboot", &reboot_handler, NULL);
 
 	httpd_register_uri_handler(inst, "/main.js", &js_handler, NULL);
@@ -378,7 +380,8 @@ int start_web_failsafe(void)
 	httpd_register_uri_handler(inst, "/factory.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/initramfs.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/uboot.html", &html_handler, NULL);
-	httpd_register_uri_handler(inst, "/backup.html", &html_handler, NULL);
+	if (!IS_ENABLED(CONFIG_FAILSAFE_LEGACY_MODE))
+		httpd_register_uri_handler(inst, "/backup.html", &html_handler, NULL);
 	httpd_register_uri_handler(inst, "/reboot.html", &html_handler, NULL);
 
 	httpd_register_uri_handler(inst, "", &not_found_handler, NULL);
