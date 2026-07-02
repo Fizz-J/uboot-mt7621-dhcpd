@@ -84,13 +84,13 @@ on:
 jobs:
   build:
     name: Build MT7621 u-boot
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
        fail-fast: False
 
     steps:
       - name: Checkout master directory
-        uses: actions/checkout@v*
+        uses: actions/checkout@v5
         with:
           path: uboot-mt7621
 
@@ -123,7 +123,7 @@ jobs:
             '${{ inputs.model }}' '${{ inputs.model }}' '${{ inputs.oldparam }}' | tee "archive/${{ inputs.model }}-build.log"
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v*
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.model }}-uboot
           path: "uboot-mt7621/archive/"
@@ -142,7 +142,7 @@ jobs:
           done
 
       - name: Create Release
-        uses: softprops/action-gh-release@v*
+        uses: softprops/action-gh-release@v2
         if: ${{ inputs.pub_release }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
