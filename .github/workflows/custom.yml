@@ -90,7 +90,7 @@ jobs:
 
     steps:
       - name: Checkout master directory
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           path: uboot-mt7621
 
@@ -127,7 +127,7 @@ jobs:
             '${{ inputs.model }}' '${{ inputs.model }}' '${{ inputs.oldparam }}' | tee "archive/${{ inputs.model }}-build.log"
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.model }}-uboot
           path: "uboot-mt7621/archive/"
