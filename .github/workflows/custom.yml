@@ -146,7 +146,7 @@ jobs:
           done
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v1
         if: ${{ inputs.pub_release }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
