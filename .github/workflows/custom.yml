@@ -127,7 +127,7 @@ jobs:
             '${{ inputs.model }}' '${{ inputs.model }}' '${{ inputs.oldparam }}' | tee "archive/${{ inputs.model }}-build.log"
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.model }}-uboot
           path: "uboot-mt7621/archive/"
@@ -146,7 +146,7 @@ jobs:
           done
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         if: ${{ inputs.pub_release }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
