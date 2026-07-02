@@ -7,7 +7,7 @@ on:
         description: 'Device Model'
         required: true
         type: string
-        default: 'ZTE_E8820S'
+
       flash:
         description: 'Flash Type'
         required: true
@@ -16,12 +16,12 @@ on:
         - 'NAND'
         - 'NAND-NMBM'
         - 'NOR'
-        default: 'NAND'
+        default: 'NOR'
       mtdparts:
         description: 'MTD Partitions'
         required: true
         type: string
-        default: '512k(u-boot),512k(u-boot-env),256k(factory),-(firmware)'
+        default: '192k(u-boot),64k(u-boot-env),64k(factory),-(firmware)'
       kernel_offset:
         description: 'Kernel Load Address'
         required: true
@@ -31,7 +31,7 @@ on:
         description: 'GPIO Config (format: reset_pin,sysled_pin)'
         required: true
         type: string
-        default: '18,3'
+        default: '18,10'
       cpufreq:
         description: 'CPU Frequency (400 - 1200)'
         required: true
@@ -84,13 +84,13 @@ on:
 jobs:
   build:
     name: Build MT7621 u-boot
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
        fail-fast: False
 
     steps:
       - name: Checkout master directory
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: uboot-mt7621
 
